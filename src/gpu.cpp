@@ -30,7 +30,6 @@ void Thread::Set_State(States st)
 
 SP::SP()
 {
-    
 }
 
 void SP::Execute()

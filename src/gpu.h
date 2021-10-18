@@ -5,6 +5,15 @@
 #include <string>
 #include <vector>
 
+class MEMREQ;
+class Instruction;
+class SP;
+class Thread;
+class WARP;
+class SM;
+class MC;
+class GPU;
+
 class MEMREQ
 {
     public:
@@ -28,15 +37,6 @@ enum class Command : int
     ADD, SUB, DIV, MUL, MOD, LOAD, MAX
 };
 
-std::string command_name[int(Command::MAX)] = {
-    "ADD", "SUB", "DIV", "MUL", "MOD", "LOAD"
-};
-
-const int Ins_Cycles[int(Command::MAX)-1] = 
-{
-    4, 4, 120, 16, 160
-};
-
 class Instruction
 {
     public:
@@ -49,7 +49,7 @@ class Instruction
 class SP
 {
     public:
-        SP() : total_cycles(0) {}
+        SP() : total_cycles(0), attached_warp(NULL), thr(NULL) {}
         
         void Set_Warp(WARP*);
         void Set_Thread(Thread*);
@@ -65,7 +65,7 @@ class SP
 class Thread
 {
     public:
-        Thread() : st(States::HALT) {}
+        Thread() : st(States::HALT), allocated_SP(NULL) {}
 
         void Add_Ins(Instruction);
         int Get_pending_ins_num();
@@ -84,7 +84,7 @@ class Thread
 class WARP
 {
     public:
-        WARP() : st(States::HALT) {}
+        WARP() : st(States::HALT), attached_SM(NULL) {}
 
         void Set_SM(SM*);
         void Notified(Thread*, Instruction);
@@ -114,12 +114,31 @@ class SM
         GPU* Get_GPU();
         void Execute();
 
+        ~SM() {
+            delete SPs;
+        }
+
     private:
         void Allocate_Warp(Instruction*);
 
         std::vector<WARP> warps;
         GPU* attached_GPU;
         SP* SPs;
+};
+
+class MC
+{
+    public:
+        MC() {}
+        MC(int ch, GPU* gpu) : CH_num(ch), attached_GPU(gpu) {}
+
+        void Add_Queue(MEMREQ);
+        int Execute(); // return cycles for each mem req
+
+    private:
+        int CH_num;
+        GPU* attached_GPU;
+        std::queue<MEMREQ> req_que;
 };
 
 class GPU
@@ -143,12 +162,8 @@ class GPU
         int Get_Core_freq();
 
         ~GPU() {
-            for (int i=0; i<SM_num; ++i) {
-                delete &SMs[i];
-            }
-            for (int i=0; i<mem_ctrller_num; ++i) {
-                delete &MCs[i];
-            }
+            delete SMs;
+            delete MCs;
         }
         
         void Add_mem_req(MEMREQ);
@@ -162,21 +177,6 @@ class GPU
         int mem_bandwidth; // in GB/s
         int SP_per_SM;
         int Core_freq; // in MHz
-};
-
-class MC
-{
-    public:
-        MC() {}
-        MC(int ch, GPU* gpu) : CH_num(ch), attached_GPU(gpu) {}
-
-        void Add_Queue(MEMREQ);
-        int Execute(); // return cycles for each mem req
-
-    private:
-        int CH_num;
-        GPU* attached_GPU;
-        std::queue<MEMREQ> req_que;
 };
 
 #endif

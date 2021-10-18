@@ -1,6 +1,15 @@
 #include "gpu.h"
 #include <assert.h>
 
+std::string command_name[int(Command::MAX)] = {
+    "ADD", "SUB", "DIV", "MUL", "MOD", "LOAD"
+};
+
+const int Ins_Cycles[int(Command::MAX)-1] = 
+{
+    4, 4, 120, 16, 160
+};
+
 void Thread::Add_Ins(Instruction ins)
 {
     ins_que.push(ins);
@@ -256,6 +265,6 @@ void MC::Add_Queue(MEMREQ mem_req)
 int MC::Execute()
 {
     double time_in_ns = (double)req_que.front().size / ((double)attached_GPU->Get_BandWidth() / attached_GPU->Get_MC_num());
-
-    return 
+    double cycles = (double)attached_GPU->Get_Core_freq()/1000 * time_in_ns;
+    return (cycles+0.984375);
 }

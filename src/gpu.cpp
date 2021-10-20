@@ -265,6 +265,7 @@ void MC::Add_Queue(MEMREQ mem_req)
 int MC::Execute()
 {
     double time_in_ns = (double)req_que.front().size / ((double)attached_GPU->Get_BandWidth() / attached_GPU->Get_MC_num());
+    req_que.pop();
     double cycles = (double)attached_GPU->Get_Core_freq()/1000 * time_in_ns;
     return (cycles+0.984375);
 }

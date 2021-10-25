@@ -1,6 +1,12 @@
 #include "gpu.h"
-#include <assert.h>
-// #include <iostream>
+// #define ASSERTED 0
+// #define DEBUGGING 0
+#ifdef ASSERTED
+    #include <assert.h>
+#endif
+#ifdef DEBUGGING
+    #include <iostream>
+#endif
 
 const std::string command_name[int(Command::MAX)] = {
     "ADD", "SUB", "DIV", "MUL", "MOD", "BITOPS", "LOAD"
@@ -67,13 +73,17 @@ WARP* SP::Get_Warp()
 
 bool SP::Execute() // return false: cannot execute further
 {
+#ifdef ASSERTED
     assert(thr != NULL && thr->Get_State() == States::EXEC);
+#endif
     Instruction ins = thr->Get_Ins();
     if (ins.comm == Command::MAX) {
         thr->Set_State(States::HALT);
         attached_warp->Notified(thr, ins);
         total_cycles += 4;
+#ifdef ASSERTED
         assert(false); // this scenario should not appear
+#endif
     }
     else if (ins.comm == Command::LOAD) {
         thr->Set_State(States::WAIT);
@@ -131,16 +141,20 @@ void WARP::Notified(Thread* thr, Instruction ins)
             break;
         }
     }
+#ifdef ASSERTED
     assert(thr_id != -1); // make sure this threads is in this warp
+#endif
 
     if (ins.comm == Command::LOAD) {
         // add mem access req to the queue
         mem_reqs[thr_id].addr = ins.op_num;
         mem_reqs[thr_id].size = 128;
     }
+#ifdef ASSERTED
     else {
         assert(ins.comm == Command::MAX);
     }
+#endif
 
     // check if all threads are waiting for memory request
     for (i=0; i<32; ++i) {
@@ -159,7 +173,9 @@ void WARP::Notified(Thread* thr, Instruction ins)
         }
 
         // make sure no further instructions
+#ifdef ASSERTED
         assert(Get_pending_ins_num() == 0);
+#endif
     }
 }
 
@@ -226,7 +242,9 @@ bool SM::Schedule(std::vector<Instruction>* ins_set, int parallel)
             bool found_exec = false;
             for (auto warp : warps) {
                 if (warp->Get_State() == States::HALT || warp->Get_State() == States::WAIT) {
+#ifdef ASSERTED
                     assert(warp->Get_pending_ins_num() == 0); // must have no pending ins
+#endif
                     Allocate_Warp(warp, ins_set, parallel); // add ins to existing warp
                     warp->Set_State(States::EXEC);
                     warp->Set_SM(this);
@@ -239,7 +257,9 @@ bool SM::Schedule(std::vector<Instruction>* ins_set, int parallel)
             }
             if (!found_exec) {
                 Allocate_Warp(NULL, ins_set, parallel); // add ins to new warp
+#ifdef ASSERTED
                 assert(warps.back()->Get_State() == States::HALT);
+#endif
                 warps.back()->Set_State(States::EXEC);
                 warps.back()->Set_SM(this);
                 for (int j=0; j<32; ++j) {
@@ -256,7 +276,9 @@ bool SM::Execute()
 {
     bool ret = false;
     for (int i=0; i<attached_GPU->Get_SP_num(); ++i) {
-        // std::cout << "SP " << i << " executing..." << std::endl;
+#ifdef DEBUGGING
+        std::cout << "SP " << i << " executing..." << std::endl;
+#endif
         ret = (ret | SPs[i].Execute());
     }
     return ret;

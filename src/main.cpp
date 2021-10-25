@@ -3,7 +3,7 @@
 #include <cstring>
 #include <assert.h>
 #include "gpu.h"
-#define RTX2060 0
+#define RTX3090 0
 
 using namespace std;
 
@@ -63,7 +63,7 @@ int main(int argc, char* argv[])
         return 1;
     }
 
-    ofstream res_out("result.txt", ios::out);
+    ofstream res_out("result3090.txt", ios::out);
     string line;
     vector<string> lineitems;
     int linenum = 0, paraindex = 0;

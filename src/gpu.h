@@ -34,15 +34,18 @@ enum class States : int
 
 enum class Command : int
 {
-    ADD, SUB, DIV, MUL, MOD, LOAD, MAX
+    ADD, SUB, DIV, MUL, MOD, BIT, LOAD, MAX
 };
 
 class Instruction
 {
     public:
+        Instruction(Command c, std::string s, long long o, int n) : comm(c), comm_name(s), op_num(o), comm_cycles(n) {}
+        Instruction(const Instruction& ins) :comm(ins.comm), comm_name(ins.comm_name), op_num(ins.op_num), comm_cycles(ins.comm_cycles) {}
+
         Command comm;
         std::string comm_name;
-        int op_num;
+        long long op_num;
         int comm_cycles;
 };
 
@@ -54,10 +57,11 @@ class SP
         void Set_Warp(WARP*);
         void Set_Thread(Thread*);
         WARP* Get_Warp();
-        void Execute();
+        bool Execute();
+        long long Get_Cycles();
 
     private:
-        int total_cycles;
+        long long total_cycles;
         WARP* attached_warp;
         Thread* thr;
 };
@@ -88,7 +92,8 @@ class WARP
 
         void Set_SM(SM*);
         void Notified(Thread*, Instruction);
-        void Add_Ins(Instruction);
+        void Add_Ins(Instruction, int, int);
+        int Get_pending_ins_num();
         States Get_State();
         void Set_State(States);
         void Set_SP(int, SP*);
@@ -96,10 +101,10 @@ class WARP
     private:
         void Aggregate();
 
+        States st;
         Thread Thr[32]; // 1 warp = 32 threads
         MEMREQ mem_reqs[32];
         SM* attached_SM;
-        States st;
 };
 
 class SM
@@ -110,18 +115,19 @@ class SM
             SPs = new SP[spnum];
         }
 
-        void Schedule(Instruction*);
+        bool Schedule(std::vector<Instruction>*, int);
         GPU* Get_GPU();
-        void Execute();
+        bool Execute();
+        long long Get_Cycles();
 
         ~SM() {
             delete SPs;
         }
 
     private:
-        void Allocate_Warp(Instruction*);
+        void Allocate_Warp(WARP*, std::vector<Instruction>*, int);
 
-        std::vector<WARP> warps;
+        std::vector<WARP*> warps;
         GPU* attached_GPU;
         SP* SPs;
 };
@@ -133,9 +139,11 @@ class MC
         MC(int ch, GPU* gpu) : CH_num(ch), attached_GPU(gpu) {}
 
         void Add_Queue(MEMREQ);
-        int Execute(); // return cycles for each mem req
+        int Execute(); // return request num and empty queue
 
     private:
+        void Clear();
+
         int CH_num;
         GPU* attached_GPU;
         std::queue<MEMREQ> req_que;
@@ -145,7 +153,7 @@ class GPU
 {
     public:
         GPU() {}
-        GPU(int sm, int sp, int mc, int bw, int freq) : SM_num(sm), SP_per_SM(sp), mem_ctrller_num(mc), mem_bandwidth(bw), Core_freq(freq) {
+        GPU(int sm, int sp, int mc, int bw, int fre) : SM_num(sm), SP_per_SM(sp), mem_ctrller_num(mc), mem_bandwidth(bw), Core_freq(fre) {
             SMs = (SM*)operator new(sizeof(SM)*SM_num);
             for (int i=0; i<SM_num; ++i) {
                 new(SMs+i) SM(SP_per_SM, this);

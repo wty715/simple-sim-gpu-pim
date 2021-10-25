@@ -1,13 +1,13 @@
 #include "gpu.h"
 #include <assert.h>
+// #include <iostream>
 
-std::string command_name[int(Command::MAX)] = {
-    "ADD", "SUB", "DIV", "MUL", "MOD", "LOAD"
+const std::string command_name[int(Command::MAX)] = {
+    "ADD", "SUB", "DIV", "MUL", "MOD", "BITOPS", "LOAD"
 };
-
 const int Ins_Cycles[int(Command::MAX)-1] = 
 {
-    4, 4, 120, 16, 160
+    4, 4, 120, 16, 160, 4
 };
 
 void Thread::Add_Ins(Instruction ins)
@@ -22,6 +22,9 @@ int Thread::Get_pending_ins_num()
 
 Instruction Thread::Get_Ins()
 {
+    if (ins_que.empty()) {
+        return Instruction(Command::MAX, "", 0, 0);
+    }
     Instruction tmp = ins_que.front();
     ins_que.pop();
     return tmp;
@@ -62,19 +65,31 @@ WARP* SP::Get_Warp()
     return attached_warp;
 }
 
-void SP::Execute()
+bool SP::Execute() // return false: cannot execute further
 {
+    assert(thr != NULL && thr->Get_State() == States::EXEC);
     Instruction ins = thr->Get_Ins();
-    if (ins.comm == Command::LOAD)
-    {
+    if (ins.comm == Command::MAX) {
+        thr->Set_State(States::HALT);
+        attached_warp->Notified(thr, ins);
+        total_cycles += 4;
+        assert(false); // this scenario should not appear
+    }
+    else if (ins.comm == Command::LOAD) {
         thr->Set_State(States::WAIT);
         attached_warp->Notified(thr, ins);
         total_cycles += 4; // 4 cycles for context switch
+        return false;
     }
-    else
-    {
+    else {
         total_cycles += ins.comm_cycles;
+        return true;
     }
+}
+
+long long SP::Get_Cycles()
+{
+    return total_cycles;
 }
 
 void WARP::Set_SM(SM* sm)
@@ -101,8 +116,7 @@ void WARP::Aggregate()
     }
     for (int i=0; i<32; ++i) {
         if (mem_reqs[i].addr != 0) {
-            GPU* gpu = attached_SM->Get_GPU();
-            gpu->Add_mem_req(mem_reqs[i]);
+            attached_SM->Get_GPU()->Add_mem_req(mem_reqs[i]);
         }
     }
 }
@@ -111,46 +125,54 @@ void WARP::Notified(Thread* thr, Instruction ins)
 {
     int thr_id = -1;
     int i;
-    for (i=0; i<32; ++i)
-    {
-        if (&Thr[i] == thr)
-        {
+    for (i=0; i<32; ++i) {
+        if (&Thr[i] == thr) {
             thr_id = i;
             break;
         }
     }
     assert(thr_id != -1); // make sure this threads is in this warp
 
-    // add mem access req to the queue
-    mem_reqs[thr_id].addr = ins.op_num;
-    mem_reqs[thr_id].size = 128;
+    if (ins.comm == Command::LOAD) {
+        // add mem access req to the queue
+        mem_reqs[thr_id].addr = ins.op_num;
+        mem_reqs[thr_id].size = 128;
+    }
+    else {
+        assert(ins.comm == Command::MAX);
+    }
 
     // check if all threads are waiting for memory request
-    for (i=0; i<32; ++i)
-    {
+    for (i=0; i<32; ++i) {
         if (Thr[i].Get_State() == States::EXEC) break;
     }
-    if (i == 32)
-    {
+    if (i == 32) {
         // aggregate all mem reqs
         Aggregate();
 
         // give up SP resources
         st = States::WAIT;
         for (int j=0; j<32; ++j) {
-            SP* tmp = Thr[j].Get_SP();
+            Thr[j].Get_SP()->Set_Warp(NULL);
+            Thr[j].Get_SP()->Set_Thread(NULL);
             Thr[j].Set_SP(NULL);
-            tmp->Set_Warp(NULL);
-            tmp->Set_Thread(NULL);
         }
+
+        // make sure no further instructions
+        assert(Get_pending_ins_num() == 0);
     }
 }
 
-void WARP::Add_Ins(Instruction ins)
+void WARP::Add_Ins(Instruction ins, int parallel, int index)
 {
-    for (int i=0; i<32; ++i) {
-        Thr[i].Add_Ins(ins);
+    for (int i=0; i<parallel; ++i) {
+        Thr[index*parallel+i].Add_Ins(ins);
     }
+}
+
+int WARP::Get_pending_ins_num()
+{
+    return Thr[0].Get_pending_ins_num();
 }
 
 States WARP::Get_State()
@@ -173,11 +195,22 @@ void WARP::Set_SP(int thr_id, SP* sp)
     sp->Set_Warp(this);
 }
 
-void SM::Allocate_Warp(Instruction* ins_set)
+void SM::Allocate_Warp(WARP* cur, std::vector<Instruction>* ins_set, int parallel)
 {
-    warps.push_back(WARP());
-    for (int i=0; i<sizeof(ins_set); ++i) {
-        warps.back().Add_Ins(ins_set[i]);
+    if (cur == NULL) {
+        warps.emplace_back(new WARP());
+        for (int i=0; i<32/parallel; ++i) {
+            for (auto ins: ins_set[i]) {
+                warps.back()->Add_Ins(ins, parallel, i);
+            }
+        }
+    }
+    else {
+        for (int i=0; i<32/parallel; ++i) {
+            for (auto ins: ins_set[i]) {
+                cur->Add_Ins(ins, parallel, i);
+            }
+        }
     }
 }
 
@@ -186,41 +219,52 @@ GPU* SM::Get_GPU()
     return attached_GPU;
 }
 
-void SM::Schedule(Instruction* ins_set)
+bool SM::Schedule(std::vector<Instruction>* ins_set, int parallel)
 {
-    for (int i=0; i<(attached_GPU->Get_SP_num()>>5); i+=32) {
+    for (int i=0; i<attached_GPU->Get_SP_num(); i+=32) {
         if (SPs[i].Get_Warp() == NULL) {
             bool found_exec = false;
-            for (std::vector<WARP>::iterator it = warps.begin(); it!=warps.end(); it++) {
-                if (it->Get_State() == States::HALT) {
-                    it->Set_State(States::EXEC);
-                    it->Set_SM(this);
+            for (auto warp : warps) {
+                if (warp->Get_State() == States::HALT || warp->Get_State() == States::WAIT) {
+                    assert(warp->Get_pending_ins_num() == 0); // must have no pending ins
+                    Allocate_Warp(warp, ins_set, parallel); // add ins to existing warp
+                    warp->Set_State(States::EXEC);
+                    warp->Set_SM(this);
                     for (int j=0; j<32; ++j) {
-                        it->Set_SP(j, &SPs[i+j]);
+                        warp->Set_SP(j, &SPs[i+j]);
                     }
                     found_exec = true;
                     break;
                 }
             }
             if (!found_exec) {
-                Allocate_Warp(ins_set);
-                assert(warps.end()->Get_State() == States::HALT);
-                warps.end()->Set_State(States::EXEC);
-                warps.end()->Set_SM(this);
+                Allocate_Warp(NULL, ins_set, parallel); // add ins to new warp
+                assert(warps.back()->Get_State() == States::HALT);
+                warps.back()->Set_State(States::EXEC);
+                warps.back()->Set_SM(this);
                 for (int j=0; j<32; ++j) {
-                    warps.end()->Set_SP(j, &SPs[i+j]);
+                    warps.back()->Set_SP(j, &SPs[i+j]);
                 }
             }
-            break;
+            return true;
         }
     }
+    return false;
 }
 
-void SM::Execute()
+bool SM::Execute()
 {
+    bool ret = false;
     for (int i=0; i<attached_GPU->Get_SP_num(); ++i) {
-        SPs[i].Execute();
+        // std::cout << "SP " << i << " executing..." << std::endl;
+        ret = (ret | SPs[i].Execute());
     }
+    return ret;
+}
+
+long long SM::Get_Cycles()
+{
+    return SPs[0].Get_Cycles();
 }
 
 int GPU::Get_MC_num()
@@ -264,8 +308,13 @@ void MC::Add_Queue(MEMREQ mem_req)
 
 int MC::Execute()
 {
-    double time_in_ns = (double)req_que.front().size / ((double)attached_GPU->Get_BandWidth() / attached_GPU->Get_MC_num());
-    req_que.pop();
-    double cycles = (double)attached_GPU->Get_Core_freq()/1000 * time_in_ns;
-    return (cycles+0.984375);
+    int reqs = req_que.size();
+    Clear();
+    return (reqs);
+}
+
+void MC::Clear()
+{
+    std::queue<MEMREQ> empty;
+    std::swap(empty, req_que);
 }

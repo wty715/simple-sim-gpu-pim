@@ -8,13 +8,8 @@
     #include <iostream>
 #endif
 
-const std::string command_name[int(Command::MAX)] = {
-    "ADD", "SUB", "DIV", "MUL", "MOD", "BITOPS", "LOAD"
-};
-const int Ins_Cycles[int(Command::MAX)-1] = 
-{
-    4, 4, 120, 16, 160, 4
-};
+extern int core_freq;
+extern int mem_bw;
 
 void Thread::Add_Ins(Instruction ins)
 {
@@ -97,7 +92,7 @@ bool SP::Execute() // return false: cannot execute further
     }
 }
 
-long long SP::Get_Cycles()
+int SP::Get_Cycles()
 {
     return total_cycles;
 }
@@ -284,7 +279,7 @@ bool SM::Execute()
     return ret;
 }
 
-long long SM::Get_Cycles()
+int SM::Get_Cycles()
 {
     return SPs[0].Get_Cycles();
 }
@@ -333,6 +328,29 @@ int MC::Execute()
     int reqs = req_que.size();
     Clear();
     return (reqs);
+}
+
+int MC::Execute(int cycles)
+{
+    int ava_mem_bw = mem_bw*1000*cycles/attached_GPU->Get_MC_num()/core_freq; // in bytes
+    int processed_reqs = 0;
+    int processed_size = 0;
+    while(processed_size < ava_mem_bw && !req_que.empty()) {
+        processed_size += req_que.front().size;
+        ++processed_reqs;
+        req_que.pop();
+    }
+    return processed_size > ava_mem_bw ? processed_reqs-1 : processed_reqs;
+}
+
+GPU* MC::Get_GPU()
+{
+    return attached_GPU;
+}
+
+int MC::Get_CH_num()
+{
+    return CH_num;
 }
 
 void MC::Clear()

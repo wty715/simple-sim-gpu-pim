@@ -18,10 +18,9 @@ class MEMREQ
 {
     public:
         MEMREQ() {}
-        MEMREQ(long long a, int b) : addr(a), size(b) {}
-        long long addr;
+        MEMREQ(int a, int b) : addr(a), size(b) {}
+        int addr;
         int size;
-        WARP* attached_warp;
 };
 
 /* EXEC: executing commands
@@ -40,12 +39,12 @@ enum class Command : int
 class Instruction
 {
     public:
-        Instruction(Command c, std::string s, long long o, int n) : comm(c), comm_name(s), op_num(o), comm_cycles(n) {}
+        Instruction(Command c, std::string s, int o, int n) : comm(c), comm_name(s), op_num(o), comm_cycles(n) {}
         Instruction(const Instruction& ins) :comm(ins.comm), comm_name(ins.comm_name), op_num(ins.op_num), comm_cycles(ins.comm_cycles) {}
 
         Command comm;
         std::string comm_name;
-        long long op_num;
+        int op_num;
         int comm_cycles;
 };
 
@@ -58,10 +57,10 @@ class SP
         void Set_Thread(Thread*);
         WARP* Get_Warp();
         bool Execute();
-        long long Get_Cycles();
+        int Get_Cycles();
 
     private:
-        long long total_cycles;
+        int total_cycles;
         WARP* attached_warp;
         Thread* thr;
 };
@@ -118,7 +117,7 @@ class SM
         bool Schedule(std::vector<Instruction>*, int);
         GPU* Get_GPU();
         bool Execute();
-        long long Get_Cycles();
+        int Get_Cycles();
 
         ~SM() {
             delete SPs;
@@ -140,6 +139,9 @@ class MC
 
         void Add_Queue(MEMREQ);
         int Execute(); // return request num and empty queue
+        int Execute(int); // return processed num based on bandwidth
+        GPU* Get_GPU();
+        int Get_CH_num();
 
     private:
         void Clear();

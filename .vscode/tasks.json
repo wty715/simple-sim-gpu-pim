@@ -9,6 +9,9 @@
                 "-g",
                 "main.cpp",
                 "gpu.cpp",
+                "pim.cpp",
+                "-DASSERTED",
+                "-DRTX2060",
                 "-o",
                 "main.exe"
             ],

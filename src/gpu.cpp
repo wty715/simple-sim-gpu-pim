@@ -1,6 +1,4 @@
 #include "gpu.h"
-// #define ASSERTED 0
-// #define DEBUGGING 0
 #ifdef ASSERTED
     #include <assert.h>
 #endif
@@ -144,6 +142,7 @@ void WARP::Notified(Thread* thr, Instruction ins)
         // add mem access req to the queue
         mem_reqs[thr_id].addr = ins.op_num;
         mem_reqs[thr_id].size = 128;
+        mem_reqs[thr_id].attached_WARP = this;
     }
 #ifdef ASSERTED
     else {
@@ -312,9 +311,12 @@ int GPU::Get_Core_freq()
 void GPU::Add_mem_req(MEMREQ mem_req)
 {
     // 32B per channel
+#ifdef ASSERTED
+    assert(mem_req.addr%128 == 0 || mem_req.attached_WARP == NULL && mem_req.addr%32 == 0);
+#endif
     int base = (mem_req.addr>>5)%mem_ctrller_num;
     for (int i=0; i<((mem_req.size+31)>>5); ++i) {
-        MCs[(base+i)%mem_ctrller_num].Add_Queue(MEMREQ((((mem_req.addr>>5)/mem_ctrller_num)<<5)+(mem_req.addr&0x1f), 32));
+        MCs[(base+i)%mem_ctrller_num].Add_Queue(MEMREQ((((mem_req.addr>>5)/mem_ctrller_num)<<5)+(mem_req.addr&0x1f), 32, mem_req.attached_WARP));
     }
 }
 
@@ -330,17 +332,21 @@ int MC::Execute()
     return (reqs);
 }
 
-int MC::Execute(int cycles)
+int MC::Execute(int cycles, int& processed_size)
 {
     int ava_mem_bw = mem_bw*1000*cycles/attached_GPU->Get_MC_num()/core_freq; // in bytes
     int processed_reqs = 0;
-    int processed_size = 0;
-    while(processed_size < ava_mem_bw && !req_que.empty()) {
+    while(!req_que.empty()) {
+        if (processed_size + req_que.front().size > ava_mem_bw) {
+            break;
+        }
         processed_size += req_que.front().size;
-        ++processed_reqs;
+        if (req_que.front().attached_WARP != NULL) {
+            ++processed_reqs;
+        }
         req_que.pop();
     }
-    return processed_size > ava_mem_bw ? processed_reqs-1 : processed_reqs;
+    return processed_reqs;
 }
 
 GPU* MC::Get_GPU()

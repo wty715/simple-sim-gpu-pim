@@ -12,6 +12,8 @@
                 "pim.cpp",
                 "-DASSERTED",
                 "-DRTX2060",
+                "-DENPIM",
+                "-DREQUESTED",
                 "-o",
                 "main.exe"
             ],

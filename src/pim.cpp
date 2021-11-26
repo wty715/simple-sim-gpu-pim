@@ -3,6 +3,10 @@
     #include <assert.h>
 #endif
 
+extern int SM_num;
+extern int SPinSM;
+extern int mem_CH;
+
 void PCU::Add_Ins(Instruction ins)
 {
     ins_que.push(ins);
@@ -25,15 +29,32 @@ CH* PCU::Get_CH()
 
 int PCU::Execute()
 {
+    if (ins_que.empty()) {
+        return 0;
+    }
     while (!ins_que.empty()) {
         Instruction ins_tmp = ins_que.front();
         ins_que.pop();
         if (ins_tmp.comm_name == "LOAD") {
-            attached_CH->Get_MC()->Get_GPU()->Add_mem_req(MEMREQ(ins_tmp.op_num, 128));
-#ifdef ASSERTED
-        assert(ins_que.empty() == true); // this scenario should not appear
+            // check if intra-channel access
+            if (attached_CH->Get_CH_num() != (ins_tmp.op_num>>7)%attached_CH->Get_MC()->Get_GPU()->Get_MC_num()) {
+                attached_CH->Get_MC()->Get_GPU()->Add_mem_req(MEMREQ(ins_tmp.op_num, 128, NULL));
+                attached_CH->Get_MC()->Get_GPU()->Add_mem_req(MEMREQ(ins_tmp.op_num, 128, NULL));
+            }
+#ifdef NO_OPT
+            // read
+            attached_CH->Get_MC()->Get_GPU()->Add_mem_req(MEMREQ(ins_tmp.op_num, 128, NULL));
+            // write
+            attached_CH->Get_MC()->Get_GPU()->Add_mem_req(MEMREQ(ins_tmp.op_num, 128, NULL));
+            // blocked
+            for (int i=0; i<SM_num*SPinSM*2/mem_CH; ++i) {
+                attached_CH->Get_MC()->Get_GPU()->Add_mem_req(MEMREQ(attached_CH->Get_CH_num()*32, 32, NULL));
+            }
 #endif
-            return total_cycles;
+#ifdef ASSERTED
+            assert(ins_que.empty() == true); // this scenario should not appear
+#endif
+            return 1;
         }
         else {
             total_cycles += ins_tmp.comm_cycles;

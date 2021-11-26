@@ -18,9 +18,10 @@ class MEMREQ
 {
     public:
         MEMREQ() {}
-        MEMREQ(int a, int b) : addr(a), size(b) {}
+        MEMREQ(int a, int b, WARP* c) : addr(a), size(b), attached_WARP(c) {}
         int addr;
         int size;
+        WARP* attached_WARP;
 };
 
 /* EXEC: executing commands
@@ -139,7 +140,7 @@ class MC
 
         void Add_Queue(MEMREQ);
         int Execute(); // return request num and empty queue
-        int Execute(int); // return processed num based on bandwidth
+        int Execute(int, int&); // return processed num and bw consumption
         GPU* Get_GPU();
         int Get_CH_num();
 

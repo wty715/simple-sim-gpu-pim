@@ -5,46 +5,15 @@
 #include "gpu.h"
 #include "pim.h"
 
-// #define ENPIM 0
-
 using namespace std;
 
-#ifdef RTX2060
-    int core_freq = 1680; // MHz
-    #ifdef ENPIM
-        const int npcu = 8; // per channel
-        int mem_CH = 32;  // 2048 bit
-        int mem_bw = 614; // GB/s
-    #else
-        const int mem_CH = 6;   // 192 bit
-        int mem_bw = 336; // GB/s
-    #endif
-    int SM_num = 30;
-    int SPinSM = 64;
-    const int parallel = 8;
-    
-#elif defined(RTX3090)
-    int core_freq = 1695; // MHz
-    #ifdef ENPIM
-        const int npcu = 8; // per channel
-        int mem_CH = 64;  // 4096 bit
-        int mem_bw = 1228; // GB/s
-    #else
-        const int mem_CH = 12;  // 384 bit
-        int mem_bw = 936; // GB/s
-    #endif
-    int SM_num = 82;
-    int SPinSM = 128;
-    const int parallel = 8;
-#else
-    int core_freq;
-    int mem_CH;
-    int mem_bw;
-    int SM_num;
-    int SPinSM;
-    int parallel;
-    int npcu;
-#endif
+const int parallel = 8;
+int core_freq;
+int mem_CH;
+int mem_BW;
+int SM_num;
+int SPinSM;
+int npcu;
 
 const std::string command_name[int(Command::MAX)] = {
     "ADD", "SUB", "DIV", "MUL", "MOD", "BITOPS", "LOAD"
@@ -67,7 +36,6 @@ void split(const string& s, vector<string>& tokens, const string& delimiters = "
 
 int main(int argc, char* argv[])
 {
-    GPU gpu(SM_num, SPinSM, mem_CH, mem_bw, core_freq);
     if (argc < 5) {
         cerr << "Usage: main -c [config file] -t [trace file]" << endl;
         return 1;
@@ -80,6 +48,24 @@ int main(int argc, char* argv[])
         return 1;
     }
 
+    string conf_name;
+    configin >> conf_name >> core_freq;
+    assert(conf_name == "core_freq");
+    configin >> conf_name >> mem_CH;
+    assert(conf_name == "mem_CH");
+    configin >> conf_name >> mem_BW;
+    assert(conf_name == "mem_BW");
+    configin >> conf_name >> SM_num;
+    assert(conf_name == "SM_num");
+    configin >> conf_name >> SPinSM;
+    assert(conf_name == "SPinSM");
+#ifdef ENPIM
+    configin >> conf_name >> npcu;
+    assert(conf_name == "npcu");
+#endif
+
+    GPU gpu(SM_num, SPinSM, mem_CH, mem_BW, core_freq);
+
 #ifdef ENPIM
     // link gpu with pim
     CH *chs = (CH*)operator new(sizeof(CH)*gpu.Get_MC_num());
@@ -91,12 +77,8 @@ int main(int argc, char* argv[])
     }
 #endif
 
-    string outname;
-#ifdef RTX2060
-    outname = "result2060";
-#elif defined(RTX3090)
-    outname = "result3090";
-#endif
+    string outname = argv[2];
+
 #ifdef REQUESTED
     outname += "-req";
 #endif
@@ -202,8 +184,8 @@ int main(int argc, char* argv[])
                         int consumed_bw = 0;
                         int processed_reqs = gpu.MCs[j].Execute(tmp_cycles-last_cycles, consumed_bw);
                         res_out << "Channel " << j << " processed 32B reqs: " << processed_reqs << endl;
-                        int ava_mem_bw = mem_bw*1000*(tmp_cycles-last_cycles)/gpu.Get_MC_num()/core_freq; // in bytes
-                        res_out << "Bandwidth " << j << " : " << consumed_bw << " / " << ava_mem_bw << " Bytes" << endl;
+                        int ava_mem_BW = mem_BW*1000*(tmp_cycles-last_cycles)/gpu.Get_MC_num()/core_freq; // in bytes
+                        res_out << "Bandwidth " << j << " : " << consumed_bw << " / " << ava_mem_BW << " Bytes" << endl;
                         // 4 = 32B*1024(M->K)/64(steps)/128(B)
                         int throughput = processed_reqs*4*core_freq/(tmp_cycles-last_cycles);
 #ifdef ENPIM

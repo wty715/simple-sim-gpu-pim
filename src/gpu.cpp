@@ -7,7 +7,7 @@
 #endif
 
 extern int core_freq;
-extern int mem_bw;
+extern int mem_BW;
 
 void Thread::Add_Ins(Instruction ins)
 {
@@ -334,10 +334,10 @@ int MC::Execute()
 
 int MC::Execute(int cycles, int& processed_size)
 {
-    int ava_mem_bw = mem_bw*1000*cycles/attached_GPU->Get_MC_num()/core_freq; // in bytes
+    int ava_mem_BW = mem_BW*1000*cycles/attached_GPU->Get_MC_num()/core_freq; // in bytes
     int processed_reqs = 0;
     while(!req_que.empty()) {
-        if (processed_size + req_que.front().size > ava_mem_bw) {
+        if (processed_size + req_que.front().size > ava_mem_BW) {
             break;
         }
         processed_size += req_que.front().size;

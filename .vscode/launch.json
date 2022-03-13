@@ -8,7 +8,7 @@
             "name": "(gdb) 启动",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${fileDirname}/../main-debug",
+            "program": "${fileDirname}/../main-dbg",
             "args": ["-c","${fileDirname}/../build/RTX3090-pim.txt","-t","${fileDirname}/../build/trace.txt"],
             "stopAtEntry": false,
             "cwd": "${fileDirname}",

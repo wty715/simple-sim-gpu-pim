@@ -1,5 +1,4 @@
 *.log
 main
-main-pim
-main-pim-intra
+main-*
 *.txt

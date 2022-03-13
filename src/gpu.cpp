@@ -2,9 +2,6 @@
 #ifdef ASSERTED
     #include <assert.h>
 #endif
-#ifdef DEBUGGING
-    #include <iostream>
-#endif
 
 extern int core_freq;
 extern int mem_BW;
@@ -270,9 +267,6 @@ bool SM::Execute()
 {
     bool ret = false;
     for (int i=0; i<attached_GPU->Get_SP_num(); ++i) {
-#ifdef DEBUGGING
-        std::cout << "SP " << i << " executing..." << std::endl;
-#endif
         ret = (ret | SPs[i].Execute());
     }
     return ret;
@@ -332,15 +326,18 @@ int MC::Execute()
     return (reqs);
 }
 
-int MC::Execute(int cycles, int& processed_size)
+int MC::Execute(int cycles, int working_PCUs)
 {
-    int ava_mem_BW = mem_BW*1000*cycles/attached_GPU->Get_MC_num()/core_freq; // in bytes
+    // each PCU will occupy 2 banks (8MB per bank) / total 32 banks (16 banks with 8M, 16 banks with 16M) per channel (48*8M)
+    // with FSM, each PCU can only occupy 1 bank (EVEN or ODD banks)
+    int ava_mem_BW = mem_BW*1000*cycles/attached_GPU->Get_MC_num()/core_freq*(48-working_PCUs)/48; // in bytes
     int processed_reqs = 0;
+    consumed_BW = 0;
     while(!req_que.empty()) {
-        if (processed_size + req_que.front().size > ava_mem_BW) {
+        if (consumed_BW + req_que.front().size > ava_mem_BW) {
             break;
         }
-        processed_size += req_que.front().size;
+        consumed_BW += req_que.front().size;
         if (req_que.front().attached_WARP != NULL) {
             ++processed_reqs;
         }
@@ -357,6 +354,16 @@ GPU* MC::Get_GPU()
 int MC::Get_CH_num()
 {
     return CH_num;
+}
+
+int MC::Get_Consumed_BW()
+{
+    return consumed_BW;
+}
+
+int MC::Get_pending_req()
+{
+    return req_que.size();
 }
 
 void MC::Clear()

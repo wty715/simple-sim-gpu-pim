@@ -16,7 +16,17 @@ int PCU::Get_pending_ins_num()
 {
     return ins_que.size();
 }
+/*
+bool PCU::Allocated()
+{
+    return allocated;
+}
 
+void PCU::Allocate(bool val)
+{
+    allocated = val;
+}
+*/
 int PCU::Get_Cycles()
 {
     return total_cycles;
@@ -27,41 +37,54 @@ CH* PCU::Get_CH()
     return attached_CH;
 }
 
-int PCU::Execute()
+int PCU::Execute(int avail_cycles, int& cycles_finish)
 {
     if (ins_que.empty()) {
         return 0;
     }
     while (!ins_que.empty()) {
         Instruction ins_tmp = ins_que.front();
-        ins_que.pop();
         if (ins_tmp.comm_name == "LOAD") {
+            ins_que.pop();
+#ifdef OPT_INTRA
             // check if intra-channel access
             if (attached_CH->Get_CH_num() != (ins_tmp.op_num>>7)%attached_CH->Get_MC()->Get_GPU()->Get_MC_num()) {
-                attached_CH->Get_MC()->Get_GPU()->Add_mem_req(MEMREQ(ins_tmp.op_num, 128, NULL));
-                attached_CH->Get_MC()->Get_GPU()->Add_mem_req(MEMREQ(ins_tmp.op_num, 128, NULL));
+                attached_CH->Get_MC()->Get_GPU()->Add_mem_req(MEMREQ(32*attached_CH->Get_CH_num(), 32, NULL)); // read from current channel
+                attached_CH->Get_MC()->Get_GPU()->Add_mem_req(MEMREQ(32*attached_CH->Get_CH_num(), 32, NULL));
+                attached_CH->Get_MC()->Get_GPU()->Add_mem_req(MEMREQ(32*attached_CH->Get_CH_num(), 32, NULL));
+                attached_CH->Get_MC()->Get_GPU()->Add_mem_req(MEMREQ(32*attached_CH->Get_CH_num(), 32, NULL));
+                attached_CH->Get_MC()->Get_GPU()->Add_mem_req(MEMREQ(ins_tmp.op_num, 32, NULL)); // write to corresponding channel
+                attached_CH->Get_MC()->Get_GPU()->Add_mem_req(MEMREQ(ins_tmp.op_num, 32, NULL));
+                attached_CH->Get_MC()->Get_GPU()->Add_mem_req(MEMREQ(ins_tmp.op_num, 32, NULL));
+                attached_CH->Get_MC()->Get_GPU()->Add_mem_req(MEMREQ(ins_tmp.op_num, 32, NULL));
             }
-#ifdef NO_OPT
-            // read
-            attached_CH->Get_MC()->Get_GPU()->Add_mem_req(MEMREQ(ins_tmp.op_num, 128, NULL));
-            // write
-            attached_CH->Get_MC()->Get_GPU()->Add_mem_req(MEMREQ(ins_tmp.op_num, 128, NULL));
-            // blocked
-            for (int i=0; i<SM_num*SPinSM*2/mem_CH; ++i) {
-                attached_CH->Get_MC()->Get_GPU()->Add_mem_req(MEMREQ(attached_CH->Get_CH_num()*32, 32, NULL));
-            }
+#else
+            attached_CH->Get_MC()->Get_GPU()->Add_mem_req(MEMREQ(ins_tmp.op_num, 128, NULL)); // read from 4 channels
+            attached_CH->Get_MC()->Get_GPU()->Add_mem_req(MEMREQ(32*attached_CH->Get_CH_num(), 32, NULL)); // write to current channel
+            attached_CH->Get_MC()->Get_GPU()->Add_mem_req(MEMREQ(32*attached_CH->Get_CH_num(), 32, NULL));
+            attached_CH->Get_MC()->Get_GPU()->Add_mem_req(MEMREQ(32*attached_CH->Get_CH_num(), 32, NULL));
+            attached_CH->Get_MC()->Get_GPU()->Add_mem_req(MEMREQ(32*attached_CH->Get_CH_num(), 32, NULL));
 #endif
 #ifdef ASSERTED
-            assert(ins_que.empty() == true); // this scenario should not appear
+            assert(ins_que.empty() == true); // the last command must be LOAD
 #endif
-            return 1;
+            cycles_finish = total_cycles;
+            last_cycles = total_cycles = 0; // reset cycle counter
+            return 1; // processed 1 step
         }
         else {
-            total_cycles += ins_tmp.comm_cycles;
+            if (total_cycles+ins_tmp.comm_cycles-last_cycles > avail_cycles) {
+                last_cycles = total_cycles;
+                return 0; // processed 0 step
+            }
+            else {
+                total_cycles += ins_tmp.comm_cycles;
+                ins_que.pop();
+            }
         }
     }
 #ifdef ASSERTED
-    assert(false); // the last command must be LOAD
+    assert(false); // this situation should not appear
 #endif
 }
 

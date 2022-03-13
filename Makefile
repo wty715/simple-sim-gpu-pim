@@ -6,4 +6,11 @@ FLAGS := -g -DASSERTED
 all:
 	$(CXX) $(FLAGS) $(FILES) -o main
 	$(CXX) $(FLAGS) $(FILES) -DENPIM -o main-pim
-	$(CXX) $(FLAGS) $(FILES) -DENPIM -DNO_OPT -o main-pim-noopt
+	$(CXX) $(FLAGS) $(FILES) -DENPIM -DOPT_FSM -o main-pim-fsm
+	$(CXX) $(FLAGS) $(FILES) -DENPIM -DOPT_FSM -DOPT_INTRA -o main-pim-fsm-intra
+
+debug:
+	$(CXX) $(FLAGS) $(FILES) -DENPIM -DOPT_INTRA -DOPT_FSM -DDEBUGGING -o main-dbg
+
+clean:
+	rm main main-pim main-pim-fsm main-pim-fsm-intra main-dbg

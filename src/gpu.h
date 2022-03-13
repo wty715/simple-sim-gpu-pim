@@ -136,18 +136,21 @@ class MC
 {
     public:
         MC() {}
-        MC(int ch, GPU* gpu) : CH_num(ch), attached_GPU(gpu) {}
+        MC(int ch, GPU* gpu) : CH_num(ch), consumed_BW(0), attached_GPU(gpu) {}
 
         void Add_Queue(MEMREQ);
         int Execute(); // return request num and empty queue
-        int Execute(int, int&); // return processed num and bw consumption
+        int Execute(int, int); // return processed num and bw consumption
         GPU* Get_GPU();
         int Get_CH_num();
+        int Get_Consumed_BW();
+        int Get_pending_req();
 
     private:
         void Clear();
 
         int CH_num;
+        int consumed_BW;
         GPU* attached_GPU;
         std::queue<MEMREQ> req_que;
 };

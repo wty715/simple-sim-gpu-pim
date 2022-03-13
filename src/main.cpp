@@ -5,6 +5,8 @@
 #include "gpu.h"
 #include "pim.h"
 
+// #define ENPIM 0
+
 using namespace std;
 
 const int parallel = 8;
@@ -14,6 +16,7 @@ int mem_BW;
 int SM_num;
 int SPinSM;
 int npcu;
+int pcu_freq;
 
 const std::string command_name[int(Command::MAX)] = {
     "ADD", "SUB", "DIV", "MUL", "MOD", "BITOPS", "LOAD"
@@ -22,7 +25,6 @@ const int Ins_Cycles[int(Command::MAX)-1] =
 {
     4, 4, 120, 16, 140, 4
 };
-const int PIM_Ins_Amp = 10;
 
 void split(const string& s, vector<string>& tokens, const string& delimiters = " ") {
     string::size_type lastPos = s.find_first_not_of(delimiters, 0);
@@ -62,6 +64,9 @@ int main(int argc, char* argv[])
 #ifdef ENPIM
     configin >> conf_name >> npcu;
     assert(conf_name == "npcu");
+    configin >> conf_name >> pcu_freq;
+    assert(conf_name == "pcu_freq");
+    int PIM_ins_amp = core_freq/pcu_freq*2;
 #endif
 
     GPU gpu(SM_num, SPinSM, mem_CH, mem_BW, core_freq);
@@ -85,8 +90,11 @@ int main(int argc, char* argv[])
 #ifdef ENPIM
     outname += "-pim";
 #endif
-#ifdef NO_OPT
-    outname += "-no_opt";
+#ifdef OPT_FSM
+    outname += "-fsm";
+#endif
+#ifdef OPT_INTRA
+    outname += "-intra";
 #endif
     outname += ".txt";
     ofstream res_out(outname, ios::out);
@@ -94,7 +102,10 @@ int main(int argc, char* argv[])
     vector<string> lineitems;
     int linenum = 0, paraindex = 0;
     vector<Instruction> ins_set[32/parallel];
-    int last_cycles = 0;
+    int last_cycles = 0, last_throughput = 0;
+    int overall_throughput = 0;
+    int PCU_threads = 0;
+    int maintain_times = 0;
     while(getline(tracein, line)) {
         ++linenum;
         lineitems.clear();
@@ -120,23 +131,55 @@ int main(int argc, char* argv[])
         else if (lineitems[0] == command_name[int(Command::LOAD)]) {
             ins_set[paraindex].emplace_back(Instruction(Command::LOAD, command_name[int(Command::LOAD)], stoi(lineitems[1]), 0));
 #ifdef ENPIM
-            // check PIM first
-            PCU* selected = NULL;
-            int involved_CH = -1;
-            for (int i=0; i<gpu.Get_MC_num(); ++i) {
-                if (selected = chs[i].Availiable()) {
-                    involved_CH = i;
-                    break;
+            if (overall_throughput != last_throughput) { // pim will have benefit
+                if (++maintain_times > 50) {
+                    ++PCU_threads;
+                    maintain_times = 0;
+                }
+                last_throughput = overall_throughput;
+                if (PCU_threads > npcu*gpu.Get_MC_num()) {
+                    PCU_threads = npcu*gpu.Get_MC_num();
                 }
             }
-            // PIM task must already finished
-            if (selected && chs[involved_CH].PCUs[0].Get_Cycles() <= gpu.SMs[0].Get_Cycles()) {
-                for (auto ins: ins_set[paraindex]) {
-                    // amplified instruction cycle
-                    selected->Add_Ins(Instruction(ins.comm, ins.comm_name, ins.op_num, ins.comm_cycles*PIM_Ins_Amp));
+            
+            int total_working_PCUs = 0;
+            for (int i=0; i<gpu.Get_MC_num(); ++i) {
+                total_working_PCUs += chs[i].working_PCUs;
+            }
+            if (total_working_PCUs < PCU_threads) {
+                int selected_CH = -1;
+                // select channel with least pending requests
+                int min_pending_req = (1<<30);
+                for (int i=0; i<gpu.Get_MC_num(); ++i) {
+                    if (gpu.MCs[i].Get_pending_req() < min_pending_req && chs[i].Availiable()) {
+                        selected_CH = i;
+                        min_pending_req = gpu.MCs[i].Get_pending_req();
+                    }
                 }
-                ins_set[paraindex].clear();
-                continue;
+                if (selected_CH != -1) {
+                    // check PIM
+                    PCU* selected = chs[selected_CH].Availiable(); // find availiable PCU
+                    if (selected) {
+                        ++chs[selected_CH].working_PCUs;
+// #ifdef ASSERTED
+//                         assert(selected->Get_Cycles() <= gpu.SMs[0].Get_Cycles()); // PIM task should be finished
+// #endif
+                        for (auto ins: ins_set[paraindex]) {
+                            // amplified instruction cycle
+                            if (ins.comm != Command::LOAD) {
+                                for (int j=0; j<PIM_ins_amp; ++j) {
+                                    selected->Add_Ins(ins);
+                                }
+                            }
+                            else {
+                                selected->Add_Ins(ins); // only 1 LOAD command
+                            }
+                        }
+                        // this task is offloaded to PIM, not need to execute on GPU
+                        ins_set[paraindex].clear();
+                        continue;
+                    }
+                }
             }
 #endif
             ++paraindex;
@@ -151,9 +194,6 @@ int main(int argc, char* argv[])
                 if (i == gpu.Get_SM_num()) {
                     // gpu execution
                     for (int j=0; j<gpu.Get_SM_num(); ++j) {
-#ifdef DEBUGGING
-                        cout << "SM " << j << " executing..." << endl;
-#endif
                         while (gpu.SMs[j].Execute());
                     }
                     // check cycles
@@ -163,44 +203,73 @@ int main(int argc, char* argv[])
                         cout << "Total " << tmp_cycles << " cycles executed." << endl;
                     }
                     // throughput
-                    int overall_throughput = 0;
+                    overall_throughput = 0;
                     // consume memory bandwidth according to limitation
-                    
-#ifdef ENPIM
-                    int pim_throughput[gpu.Get_MC_num()] = {0};
-                    for (int j=0; j<gpu.Get_MC_num(); ++j) {
-                        // PIM execution
-                        for (int k=0; k<chs[j].Get_PCU_num(); ++k) {
-                            // res_out << "PIM_Channel " << j << "'s " << k << " pending instructions: " << chs[j].PCUs[k].Get_pending_ins_num() << endl;
-                            pim_throughput[j] += chs[j].PCUs[k].Execute();
-                        }
-                    }
-                    res_out << "PIM Channel total cycles: " << chs[0].PCUs[0].Get_Cycles() << endl;
-#endif
                     for (int j=0; j<gpu.Get_MC_num(); ++j) {
 #ifdef REQUESTED
                         res_out << "Channel " << j << " receive 32B reqs: " << gpu.MCs[j].Execute() << endl;
 #else
-                        int consumed_bw = 0;
-                        int processed_reqs = gpu.MCs[j].Execute(tmp_cycles-last_cycles, consumed_bw);
+#ifdef ENPIM
+                        // PIM execution
+                        int cycles_this_time = PIM_ins_amp * (tmp_cycles-last_cycles-4); // estimated PCU cycles
+                        int pim_executed = 0;
+                        for (int k=0; k<chs[j].Get_PCU_num(); ++k) {
+#ifdef DEBUGGING
+                            if (chs[j].PCUs[k].Get_pending_ins_num() != 0) {
+                                res_out << "Channel " << j << "'s PCU " << k << " pending instructions: " << chs[j].PCUs[k].Get_pending_ins_num() << endl;
+                            }
+#endif
+                            int pcu_cycles = 0;
+                            pim_executed += chs[j].PCUs[k].Execute(tmp_cycles-last_cycles, pcu_cycles);
+                            if (pcu_cycles) { // PCU finishes
+                                cycles_this_time = pcu_cycles; // record the last finished PCU's actual cycles
+                            }
+                        }
+#endif
+#ifdef ENPIM
+#ifdef OPT_FSM
+                        int processed_reqs = gpu.MCs[j].Execute(tmp_cycles-last_cycles, chs[j].working_PCUs);
+#else
+                        int processed_reqs = gpu.MCs[j].Execute(tmp_cycles-last_cycles, 2*chs[j].working_PCUs);
+#endif
+#else
+                        int processed_reqs = gpu.MCs[j].Execute(tmp_cycles-last_cycles, 0);
+#endif
+#ifdef DEBUGGING
                         res_out << "Channel " << j << " processed 32B reqs: " << processed_reqs << endl;
-                        int ava_mem_BW = mem_BW*1000*(tmp_cycles-last_cycles)/gpu.Get_MC_num()/core_freq; // in bytes
-                        res_out << "Bandwidth " << j << " : " << consumed_bw << " / " << ava_mem_BW << " Bytes" << endl;
+#endif
+                        int total_mem_BW = mem_BW*1000*(tmp_cycles-last_cycles)/gpu.Get_MC_num()/core_freq; // in bytes
+#ifdef ENPIM
+#ifdef OPT_FSM
+                        int ava_mem_BW = total_mem_BW*(48-chs[j].working_PCUs)/48; // in bytes
+#else
+                        int ava_mem_BW = total_mem_BW*(48-2*chs[j].working_PCUs)/48; // in bytes
+#endif
+                        res_out << "Bandwidth " << j << " : " << gpu.MCs[j].Get_Consumed_BW() << " / " << ava_mem_BW << " / " << total_mem_BW << " Bytes" << endl;
+#else
+                        res_out << "Bandwidth " << j << " : " << gpu.MCs[j].Get_Consumed_BW() << " / " << total_mem_BW << " Bytes" << endl;
+#endif
                         // 4 = 32B*1024(M->K)/64(steps)/128(B)
                         int throughput = processed_reqs*4*core_freq/(tmp_cycles-last_cycles);
-#ifdef ENPIM
-                        throughput += pim_throughput[j]*1024/64*core_freq/(tmp_cycles-last_cycles);
-#endif
                         res_out << "Throughput " << j << " : " << throughput << " KH/s" << endl;
+#ifdef ENPIM
+                        int pim_throughput = chs[j].working_PCUs*1024/64*core_freq/cycles_this_time;
+                        res_out << "Channel " << j << " Working PCU number: " << chs[j].working_PCUs << endl;
+                        res_out << "PIM " << j << " throughput: " << pim_throughput << " KH/s" << endl;
+                        throughput += pim_throughput;
+                        // these PCUs finished their calculations
+                        chs[j].working_PCUs -= pim_executed;
+#endif
                         overall_throughput += throughput;
 #endif
                     }
                     res_out << "Overall: " << overall_throughput << " KH/s" << endl;
+                    res_out << "Total PCU threads: " << PCU_threads << endl;
                     // record cycles
                     last_cycles = tmp_cycles;
                     assert(gpu.SMs[0].Schedule(ins_set, parallel) == true);
                 }
-                for (int i=0; i<32/parallel; ++i) {
+                for (i=0; i<32/parallel; ++i) {
                     ins_set[i].clear();
                 }
             }

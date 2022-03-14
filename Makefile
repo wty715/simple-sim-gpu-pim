@@ -12,5 +12,8 @@ all:
 debug:
 	$(CXX) $(FLAGS) $(FILES) -DENPIM -DOPT_INTRA -DOPT_FSM -DDEBUGGING -o main-dbg
 
+req:
+	$(CXX) $(FLAGS) $(FILES) -DREQUESTED -o main-req
+
 clean:
 	rm main main-pim main-pim-fsm main-pim-fsm-intra main-dbg

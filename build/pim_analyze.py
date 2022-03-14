@@ -33,10 +33,12 @@ with open(sys.argv[1], "r", encoding='utf-8') as infile:
         elif (x[0] == "Total"):
             if (pcu_thread != int(x[3])):
                 out.write("PCU = " + str(pcu_thread) + " :\n")
-                out.write("overall bandwidth: " + str(float(overall_bw)/times) + " Bytes\n")
+                out.write("bandwidth: " + str(float(overall_bw)/times) + " Bytes\n")
                 if ("pim" in sys.argv[1]):
                     out.write("available bandwidth: " + str(float(ava_bw)/times) + " Bytes\n")
                 out.write("bandwidth limit: " + str(float(bw_limit)/times) + " Bytes\n")
+                out.write("PIM bandwidth: " + str(float(bw_limit-ava_bw)/times) + " Bytes\n")
+                out.write("overall bandwidth: " + str(float(overall_bw+bw_limit-ava_bw)/times) + " Bytes\n")
                 out.write("throughput: " + str(float(throughput)/times) + " KH/s\n")
                 out.write("PIM throughput: " + str(float(pim_through)/times) + " KH/s\n")
                 out.write("Overall throughput: " + str(float(throughput+pim_through)/times) + " KH/s\n\n")
@@ -54,10 +56,12 @@ with open(sys.argv[1], "r", encoding='utf-8') as infile:
             continue
 
 out.write("PCU = " + str(pcu_thread) + " :\n")
-out.write("overall bandwidth: " + str(float(overall_bw)/times) + " Bytes\n")
+out.write("bandwidth: " + str(float(overall_bw)/times) + " Bytes\n")
 if ("pim" in sys.argv[1]):
     out.write("available bandwidth: " + str(float(ava_bw)/times) + " Bytes\n")
 out.write("bandwidth limit: " + str(float(bw_limit)/times) + " Bytes\n")
+out.write("PIM bandwidth: " + str(float(bw_limit-ava_bw)/times) + " Bytes\n")
+out.write("overall bandwidth: " + str(float(overall_bw+bw_limit-ava_bw)/times) + " Bytes\n")
 out.write("throughput: " + str(float(throughput)/times) + " KH/s\n")
 out.write("PIM throughput: " + str(float(pim_through)/times) + " KH/s\n")
 out.write("Overall throughput: " + str(float(throughput+pim_through)/times) + " KH/s\n\n")

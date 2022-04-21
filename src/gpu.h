@@ -140,7 +140,7 @@ class MC
 
         void Add_Queue(MEMREQ);
         int Execute(); // return request num and empty queue
-        int Execute(int, int); // return processed num and bw consumption
+        int Execute(int, int, int&); // return processed num and bw consumption
         GPU* Get_GPU();
         int Get_CH_num();
         int Get_Consumed_BW();

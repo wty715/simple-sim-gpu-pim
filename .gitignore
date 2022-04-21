@@ -1,4 +1,5 @@
 *.log
 main
 main-*
-*.txt
+*.txt*.txt*
+trace.txt

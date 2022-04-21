@@ -1,0 +1,6 @@
+core_freq 1695
+mem_CH 12
+mem_BW 936
+SM_num 82
+SPinSM 128
+

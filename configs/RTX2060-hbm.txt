@@ -1,0 +1,6 @@
+core_freq 1680
+mem_CH 32
+mem_BW 614
+SM_num 30
+SPinSM 64
+

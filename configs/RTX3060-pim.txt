@@ -1,0 +1,8 @@
+core_freq 1777
+mem_CH 32
+mem_BW 614
+SM_num 28
+SPinSM 128
+npcu 8
+pcu_freq 300
+

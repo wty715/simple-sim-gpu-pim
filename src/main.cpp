@@ -226,25 +226,17 @@ int main(int argc, char* argv[])
                             }
                         }
 #endif
+                        int ava_mem_BW;
 #ifdef ENPIM
-#ifdef OPT_FSM
-                        int processed_reqs = gpu.MCs[j].Execute(tmp_cycles-last_cycles, chs[j].working_PCUs);
+                        int processed_reqs = gpu.MCs[j].Execute(tmp_cycles-last_cycles, chs[j].working_PCUs, ava_mem_BW);
 #else
-                        int processed_reqs = gpu.MCs[j].Execute(tmp_cycles-last_cycles, 2*chs[j].working_PCUs);
-#endif
-#else
-                        int processed_reqs = gpu.MCs[j].Execute(tmp_cycles-last_cycles, 0);
+                        int processed_reqs = gpu.MCs[j].Execute(tmp_cycles-last_cycles, 0, ava_mem_BW);
 #endif
 #ifdef DEBUGGING
                         res_out << "Channel " << j << " processed 32B reqs: " << processed_reqs << endl;
 #endif
                         int total_mem_BW = mem_BW*1000*(tmp_cycles-last_cycles)/gpu.Get_MC_num()/core_freq; // in bytes
 #ifdef ENPIM
-#ifdef OPT_FSM
-                        int ava_mem_BW = total_mem_BW*(48-chs[j].working_PCUs)/48; // in bytes
-#else
-                        int ava_mem_BW = total_mem_BW*(48-2*chs[j].working_PCUs)/48; // in bytes
-#endif
                         res_out << "Bandwidth " << j << " : " << gpu.MCs[j].Get_Consumed_BW() << " / " << ava_mem_BW << " / " << total_mem_BW << " Bytes" << endl;
 #else
                         res_out << "Bandwidth " << j << " : " << gpu.MCs[j].Get_Consumed_BW() << " / " << total_mem_BW << " Bytes" << endl;

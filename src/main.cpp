@@ -132,7 +132,7 @@ int main(int argc, char* argv[])
             ins_set[paraindex].emplace_back(Instruction(Command::LOAD, command_name[int(Command::LOAD)], stoi(lineitems[1]), 0));
 #ifdef ENPIM
             if (overall_throughput != last_throughput) { // pim will have benefit
-                if (++maintain_times > 50) {
+                if (++maintain_times > 10) {
                     ++PCU_threads;
                     maintain_times = 0;
                 }

@@ -328,12 +328,21 @@ int MC::Execute()
 
 int MC::Execute(int cycles, int working_PCUs, int& ava_mem_BW)
 {
-    // each PCU will occupy 2 banks (8MB per bank) / total 32 banks (16 banks with 8M, 16 banks with 16M) per channel (48*8M)
-    ava_mem_BW = mem_BW*1000*cycles/attached_GPU->Get_MC_num()/core_freq*(48-2*working_PCUs)/48; // in bytes
+    ava_mem_BW = mem_BW*1000*cycles/attached_GPU->Get_MC_num()/core_freq; // in bytes
+    
 #ifdef OPT_FSM
-    // reduce the conflict probability by 1/2*working PCU numbers
-    ava_mem_BW = ava_mem_BW*(48-working_PCUs)/(48-2*working_PCUs);
+    int this_req_num = req_que.size()-last_req_num;
+    if (this_req_num < thres_req_num) {
+        // lower than the threshold, PCU working
+        ava_mem_BW = ava_mem_BW*(48-2*working_PCUs)/48;
+    } // otherwise maximize bandwidth without PCU working
+    thres_req_num = thres_req_num*avg_times + this_req_num;
+    thres_req_num /= ++avg_times; // update threshold
+#else
+    // each PCU will occupy 2 banks (8MB per bank) / total 32 banks (16 banks with 8M, 16 banks with 16M) per channel (48*8M)
+    ava_mem_BW = ava_mem_BW*(48-2*working_PCUs)/48;
 #endif
+
     int processed_reqs = 0;
     consumed_BW = 0;
     while(!req_que.empty()) {
@@ -346,6 +355,7 @@ int MC::Execute(int cycles, int working_PCUs, int& ava_mem_BW)
         }
         req_que.pop();
     }
+    last_req_num = req_que.size();
     return processed_reqs;
 }
 

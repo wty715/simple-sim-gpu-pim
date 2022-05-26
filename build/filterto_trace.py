@@ -35,6 +35,6 @@ with open("filtered.log", "r", encoding='utf-8') as infile:
         if (i%100000 == 0):
             print (str(i) + " lines finished.")
         
-        if (sys.argv[1] == "small"):
+        if (len(sys.argv) > 1 & sys.argv[1] == "small"):
             if (i == 4000000):
                 break

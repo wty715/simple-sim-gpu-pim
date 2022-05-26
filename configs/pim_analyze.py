@@ -23,6 +23,7 @@ with open(sys.argv[1], "r", encoding='utf-8') as infile:
                 bw_limit += int(x[7])
             else:
                 bw_limit += int(x[5])
+                ava_bw = bw_limit
         elif (x[0] == "Throughput"):
             throughput += int(x[3])
         elif (x[0] == "PIM"):
@@ -33,15 +34,20 @@ with open(sys.argv[1], "r", encoding='utf-8') as infile:
         elif (x[0] == "Total"):
             if (pcu_thread != int(x[3])):
                 out.write("PCU = " + str(pcu_thread) + " :\n")
-                out.write("bandwidth: " + str(float(overall_bw)/times) + " Bytes\n")
+                out.write("GPU bandwidth: " + str(float(overall_bw)/times) + " Bytes\n")
+                out.write("GPU BW percentage: " + str(float(overall_bw)/float(bw_limit)*100) + " %\n")
+                #if ("pim" in sys.argv[1]):
+                #    out.write("Available bandwidth: " + str(float(ava_bw)/times) + " Bytes\n")
+                out.write("Bandwidth limit: " + str(float(bw_limit)/times) + " Bytes\n")
                 if ("pim" in sys.argv[1]):
-                    out.write("available bandwidth: " + str(float(ava_bw)/times) + " Bytes\n")
-                out.write("bandwidth limit: " + str(float(bw_limit)/times) + " Bytes\n")
-                out.write("PIM bandwidth: " + str(float(bw_limit-ava_bw)/times) + " Bytes\n")
-                out.write("overall bandwidth: " + str(float(overall_bw+bw_limit-ava_bw)/times) + " Bytes\n")
-                out.write("throughput: " + str(float(throughput)/times) + " KH/s\n")
-                out.write("PIM throughput: " + str(float(pim_through)/times) + " KH/s\n")
-                out.write("Overall throughput: " + str(float(throughput+pim_through)/times) + " KH/s\n\n")
+                    out.write("PIM bandwidth: " + str(float(bw_limit-ava_bw)/times) + " Bytes\n")
+                    out.write("PIM BW percentage: " + str(float(bw_limit-ava_bw)/float(bw_limit)*100) + " %\n")
+                    out.write("Overall bandwidth: " + str(float(overall_bw+bw_limit-ava_bw)/times) + " Bytes\n")
+                    out.write("Overall BW percentage: " + str(float(overall_bw+bw_limit-ava_bw)/float(bw_limit)*100) + " %\n")
+                out.write("GPU throughput: " + str(float(throughput)/times) + " KH/s\n")
+                if ("pim" in sys.argv[1]):
+                    out.write("PIM throughput: " + str(float(pim_through)/times) + " KH/s\n")
+                    out.write("Overall throughput: " + str(float(throughput+pim_through)/times) + " KH/s\n\n")
 
                 pcu_thread = int(x[3])
                 overall_bw = 0
@@ -56,12 +62,17 @@ with open(sys.argv[1], "r", encoding='utf-8') as infile:
             continue
 
 out.write("PCU = " + str(pcu_thread) + " :\n")
-out.write("bandwidth: " + str(float(overall_bw)/times) + " Bytes\n")
+out.write("GPU bandwidth: " + str(float(overall_bw)/times) + " Bytes\n")
+out.write("GPU BW percentage: " + str(float(overall_bw)/float(bw_limit)*100) + " %\n")
+#if ("pim" in sys.argv[1]):
+#    out.write("Available bandwidth: " + str(float(ava_bw)/times) + " Bytes\n")
+out.write("Bandwidth limit: " + str(float(bw_limit)/times) + " Bytes\n")
 if ("pim" in sys.argv[1]):
-    out.write("available bandwidth: " + str(float(ava_bw)/times) + " Bytes\n")
-out.write("bandwidth limit: " + str(float(bw_limit)/times) + " Bytes\n")
-out.write("PIM bandwidth: " + str(float(bw_limit-ava_bw)/times) + " Bytes\n")
-out.write("overall bandwidth: " + str(float(overall_bw+bw_limit-ava_bw)/times) + " Bytes\n")
-out.write("throughput: " + str(float(throughput)/times) + " KH/s\n")
-out.write("PIM throughput: " + str(float(pim_through)/times) + " KH/s\n")
-out.write("Overall throughput: " + str(float(throughput+pim_through)/times) + " KH/s\n\n")
+    out.write("PIM bandwidth: " + str(float(bw_limit-ava_bw)/times) + " Bytes\n")
+    out.write("PIM BW percentage: " + str(float(bw_limit-ava_bw)/float(bw_limit)*100) + " %\n")
+    out.write("Overall bandwidth: " + str(float(overall_bw+bw_limit-ava_bw)/times) + " Bytes\n")
+    out.write("Overall BW percentage: " + str(float(overall_bw+bw_limit-ava_bw)/float(bw_limit)*100) + " %\n")
+out.write("GPU throughput: " + str(float(throughput)/times) + " KH/s\n")
+if ("pim" in sys.argv[1]):
+    out.write("PIM throughput: " + str(float(pim_through)/times) + " KH/s\n")
+    out.write("Overall throughput: " + str(float(throughput+pim_through)/times) + " KH/s\n\n")

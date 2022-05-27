@@ -54,7 +54,7 @@ Note that all experiments may take more than 1 hours.
 The logs are recorded in the root directory with ***.txt*** suffix. The results will be generated in ***configs*** with ***(config-file-name).txt***.  
 Then you can use **`$./analyze.sh`** in ***configs*** directory to analyze the results and the statistic information will be written to ***(config-file-name).txt-result.txt***.
 
-***TIPS:*** if you want to get all the results faster, you may generate a shrunken trace file by **`$python3 build/filterto_trace.py small`**.  
+***TIPS:*** if you want to get all the results faster, you may generate a shrunken trace file by **`$python3 filterto_trace.py small`**.  
 It only generates a half trace file (~2.5GB), but the results may not be exactly the same with what in papers.
 
 ### Results explanation:
@@ -77,7 +77,7 @@ Overall throughput: 27155.671875 KH/s       // The overall mining hashrate (GPU_
 
 Note that items `(PIM_BW, PIM_BW_%, Overall_BW, Overall_BW_%, PIM_throughput, Overall_throughput)` only appears when PIM-related parameters are set in config file.
 
-We also need to transfer bandwidth consumption percentage into **(GB/s)**, which is calculated by ***BW_consumption_percentage * mem_BW*** in config file. For example, in the above result, we equip RTX2060 with **614GB/s** HBM-PIM, which means it finally consumes **54.7% * 614GB/s = 335.858GB/s** bandwidth in total.
+We also need to transfer bandwidth consumption percentage into **(GB/s)**, which is calculated by ***BW_consumption_percentage * mem_BW*** in the config file. For example, in the above result, we equip RTX2060 with **614GB/s** HBM-PIM, which means it finally consumes **54.7% * 614GB/s = 335.858GB/s** bandwidth in total.
 
 ---
 

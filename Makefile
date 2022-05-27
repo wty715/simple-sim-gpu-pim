@@ -16,4 +16,4 @@ req:
 	$(CXX) $(FLAGS) $(FILES) -DREQUESTED -o main-req
 
 clean:
-	rm main main-pim main-pim-fsm main-pim-fsm-intra main-dbg
+	rm main main-pim main-pim-fsm main-pim-fsm-intra main-dbg main-req

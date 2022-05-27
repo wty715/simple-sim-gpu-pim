@@ -3,6 +3,7 @@ import sys
 out = open("trace.txt", "w")
 
 i = 0
+max=40600000
 
 with open("filtered.log", "r", encoding='utf-8') as infile:
     for line in infile:
@@ -32,9 +33,10 @@ with open("filtered.log", "r", encoding='utf-8') as infile:
         # address
         out.write("LOAD " + str(num) + '\n')
         
-        if (i%100000 == 0):
-            print (str(i) + " lines finished.")
-        
-        if (len(sys.argv) > 1 & sys.argv[1] == "small"):
-            if (i == 4000000):
-                break
+        if (i%406000 == 0):
+            tmp = i//406000
+            print("\r{}% lines finished.".format(tmp), "#"*(tmp//2), end="")
+            if (len(sys.argv) > 1 and sys.argv[1] == "small"):
+                if (tmp == 50):
+                    break
+print("\n")

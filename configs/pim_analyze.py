@@ -49,6 +49,8 @@ with open(sys.argv[1], "r", encoding='utf-8') as infile:
                     out.write("PIM throughput: " + str(float(pim_through)/times) + " KH/s\n")
                     out.write("Overall throughput: " + str(float(throughput+pim_through)/times) + " KH/s\n\n")
 
+                print("\rAnalysis of {} activated PCUs finished.".format(pcu_thread), "#"*(pcu_thread//4), end="")
+
                 pcu_thread = int(x[3])
                 overall_bw = 0
                 ava_bw = 0
@@ -76,3 +78,6 @@ out.write("GPU throughput: " + str(float(throughput)/times) + " KH/s\n")
 if ("pim" in sys.argv[1]):
     out.write("PIM throughput: " + str(float(pim_through)/times) + " KH/s\n")
     out.write("Overall throughput: " + str(float(throughput+pim_through)/times) + " KH/s\n\n")
+
+print("\rAnalysis of {} activated PCUs finished.".format(pcu_thread), "#"*(pcu_thread//4), end="")
+print("\n")

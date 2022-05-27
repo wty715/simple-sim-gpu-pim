@@ -39,7 +39,7 @@ One more executable file will be generated:
 
 You can download the 15-minute memory access trace from https://drive.google.com/file/d/1aZpdZC_FnDau0QcIDl2j8cc5BjU9hE2c/view?usp=sharing.  
 The downloaded ***filtered.log*** should be moved to ***build*** directory: **$mv filtered.log ./build/**.  
-Then, you need to use **$python3 build/filterto_trace.py** to translate raw memory accesses to a trace file named ***trace.txt***.  
+Then, you need to enter ***build*** directory **$cd build/** and use **$python3 filterto_trace.py** to translate raw memory accesses to a trace file named ***trace.txt***.  
 ***NOTE:*** The trace file may consume ~5GB disk space. Make sure that you have enough disk space.
 
 After trace file generation, you can run all the experiments by **$./run.sh**.  
